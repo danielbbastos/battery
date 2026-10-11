@@ -269,6 +269,18 @@ function golden_gate_write_limit() {
 		golden_gate_write_verified bfF0 00 || log "⚠️ Failed to reset bfF0 after a Golden Gate write failure"
 		return 1
 	fi
+	golden_gate_apply_limit
+}
+
+# On some firmware (seen on macOS 15.8.1) a new limit is only picked up when the
+# charger is (re)connected. Briefly cutting the adapter via CHIE simulates that.
+function golden_gate_apply_limit() {
+	[[ "$smc_supports_adapter_chie" == "true" ]] || return 0
+	pmset -g batt | head -n1 | grep -q "AC Power" || return 0
+	log "Golden Gate: briefly cutting the adapter so the firmware applies the new limit"
+	smc_write_hex CHIE 08 || return 1
+	sleep 3
+	smc_write_hex CHIE 00 || log "⚠️ Failed to restore the adapter after a Golden Gate limit change"
 }
 
 ## #########################
@@ -400,7 +412,9 @@ function disable_charging() {
 			log "⚠️ Unable to read battery percentage for Golden Gate charging control"
 			return 1
 		fi
-		upper=$((battery_percentage - 2))
+		# Hold at the current level: the firmware drains on AC down to the upper limit,
+		# so a limit below it makes maintain bounce between draining and recharging.
+		upper=$battery_percentage
 		[[ $upper -lt 2 ]] && upper=2
 		lower=$((upper - 2))
 		sudo "$battery_binary" golden_gate "$upper" "$lower"
