@@ -4,7 +4,7 @@
 ## Update management
 ## variables are used by this binary as well at the update script
 ## ###############
-BATTERY_CLI_VERSION="v1.3.5"
+BATTERY_CLI_VERSION="v1.3.4"
 
 # If a script may run as root:
 #   - Reset PATH to safe defaults at the very beginning of the script.
@@ -274,14 +274,15 @@ function golden_gate_write_limit() {
 ## #########################
 ## Detect supported SMC keys
 ## #########################
-macos_major_version=$(sw_vers -productVersion | cut -d. -f1)
+[[ $($smc_binary -k CHTE -r) =~ "no data" ]] && smc_supports_tahoe=false || smc_supports_tahoe=true;
+[[ $($smc_binary -k CH0B -r) =~ "no data" ]] && smc_supports_legacy=false || smc_supports_legacy=true;
+# Golden Gate keys ship with the firmware, not a specific macOS version (seen on 15.8, 26.7 and 27),
+# so detect them by key shape and only use them when the older charging keys are gone.
 smc_supports_golden_gate=false
-if [[ "$macos_major_version" =~ ^[0-9]+$ && $macos_major_version -ge 27 ]] && \
+if [[ "$smc_supports_tahoe" == "false" && "$smc_supports_legacy" == "false" ]] && \
 	smc_key_matches bfD0 ui32 4 && smc_key_matches bfE0 ui32 4 && smc_key_matches bfF0 ui8 1; then
 	smc_supports_golden_gate=true
 fi
-[[ $($smc_binary -k CHTE -r) =~ "no data" ]] && smc_supports_tahoe=false || smc_supports_tahoe=true;
-[[ $($smc_binary -k CH0B -r) =~ "no data" ]] && smc_supports_legacy=false || smc_supports_legacy=true;
 [[ $($smc_binary -k CHIE -r) =~ "no data" ]] && smc_supports_adapter_chie=false || smc_supports_adapter_chie=true;
 [[ $($smc_binary -k CH0I -r) =~ "no data" ]] && smc_supports_adapter_ch0i=false || smc_supports_adapter_ch0i=true;
 [[ $($smc_binary -k CH0J -r) =~ "no data" || $($smc_binary -k CH0J -r) =~ "Error" ]] && smc_supports_adapter_ch0j=false || smc_supports_adapter_ch0j=true;
